@@ -1,8 +1,8 @@
-
 import * as pdfjs from 'pdfjs-dist';
 
 // Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+const pdfjsVersion = pdfjs.version;
+pdfjs.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.js`;
 
 /**
  * Reads a file and returns its text content
@@ -13,7 +13,10 @@ export const readFile = (file: File): Promise<string> => {
     if (file.type === 'application/pdf') {
       return readPdfFile(file)
         .then(resolve)
-        .catch(reject);
+        .catch(error => {
+          console.error('Error reading PDF:', error);
+          reject(new Error(`Failed to read PDF file: ${error.message || 'Unknown error'}`));
+        });
     }
     
     // For other files, use the FileReader
@@ -27,7 +30,8 @@ export const readFile = (file: File): Promise<string> => {
       }
     };
     
-    reader.onerror = () => {
+    reader.onerror = (event) => {
+      console.error('File reading error:', event);
       reject(new Error('Error reading file'));
     };
     
@@ -40,12 +44,35 @@ export const readFile = (file: File): Promise<string> => {
  */
 const readPdfFile = async (file: File): Promise<string> => {
   try {
+    // First attempt to use PDF.js directly
+    console.log('Starting PDF reading process');
+    
     // Convert the file to an ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
+    console.log('File converted to ArrayBuffer');
     
-    // Load the PDF document
-    const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
-    const pdf = await loadingTask.promise;
+    // Create a fallback approach using a data URL if needed
+    const loadingTask = pdfjs.getDocument({
+      data: new Uint8Array(arrayBuffer),
+      standardFontDataUrl: 'node_modules/pdfjs-dist/standard_fonts/',
+      cMapUrl: 'node_modules/pdfjs-dist/cmaps/',
+      cMapPacked: true,
+    });
+    
+    console.log('PDF loading task created');
+    
+    // Use a timeout to prevent hanging
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('PDF loading timed out after 10 seconds')), 10000);
+    });
+    
+    // Race the PDF loading against the timeout
+    const pdf = await Promise.race([
+      loadingTask.promise,
+      timeoutPromise
+    ]);
+    
+    console.log('PDF document loaded, pages:', pdf.numPages);
     
     // Extract text from each page
     let fullText = '';
@@ -60,12 +87,23 @@ const readPdfFile = async (file: File): Promise<string> => {
         .join(' ');
       
       fullText += pageText + '\n\n';
+      console.log(`Processed page ${i}/${pdf.numPages}`);
     }
     
-    return fullText;
+    console.log('PDF text extraction complete');
+    return fullText || 'No text content found in the PDF';
   } catch (error) {
-    console.error('Error reading PDF:', error);
-    throw new Error('Failed to read PDF file');
+    console.error('Error processing PDF:', error);
+    
+    // Fall back to a simplified approach using FileReader for PDF preview
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve('PDF content preview not available. Please try a different file format.');
+      };
+      reader.onerror = () => reject(new Error('PDF read failed in fallback mode'));
+      reader.readAsText(file);
+    });
   }
 };
 
