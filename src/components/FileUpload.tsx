@@ -11,19 +11,23 @@ interface FileUploadProps {
 
 const FileUpload: React.FC<FileUploadProps> = ({ onTextLoad }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
     
+    setIsLoading(true);
     try {
       const text = await readFile(files[0]);
       onTextLoad(text);
       toast.success('File loaded successfully');
     } catch (error) {
       console.error('Error reading file:', error);
-      toast.error('Failed to read file');
+      toast.error(`Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
     }
     
     // Reset file input
@@ -48,13 +52,16 @@ const FileUpload: React.FC<FileUploadProps> = ({ onTextLoad }) => {
     const files = e.dataTransfer.files;
     if (!files || files.length === 0) return;
     
+    setIsLoading(true);
     try {
       const text = await readFile(files[0]);
       onTextLoad(text);
       toast.success('File loaded successfully');
     } catch (error) {
       console.error('Error reading file:', error);
-      toast.error('Failed to read file');
+      toast.error(`Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -96,12 +103,13 @@ const FileUpload: React.FC<FileUploadProps> = ({ onTextLoad }) => {
           variant="outline"
           size="sm"
           className="mt-2"
+          disabled={isLoading}
           onClick={(e) => {
             e.stopPropagation();
             handleClick();
           }}
         >
-          Select File
+          {isLoading ? 'Loading...' : 'Select File'}
         </Button>
       </div>
     </div>
