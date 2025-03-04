@@ -81,7 +81,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onTextLoad }) => {
         type="file"
         ref={fileInputRef}
         className="hidden"
-        accept=".txt,.rtf,.doc,.docx,.html,.md"
+        accept=".txt,.rtf,.doc,.docx,.html,.md,.pdf"
         onChange={handleFileChange}
       />
       <div className="flex flex-col items-center space-y-2 text-center">
@@ -90,7 +90,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onTextLoad }) => {
         </div>
         <div className="space-y-1">
           <p className="text-sm font-medium">Upload a file or drag and drop</p>
-          <p className="text-xs text-muted-foreground">TXT, RTF, DOC, DOCX, HTML, MD up to 10MB</p>
+          <p className="text-xs text-muted-foreground">TXT, RTF, DOC, DOCX, HTML, MD, PDF up to 10MB</p>
         </div>
         <Button
           variant="outline"

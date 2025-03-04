@@ -1,9 +1,23 @@
 
+import * as pdfjs from 'pdfjs-dist';
+
+// Set worker path to fetch worker scripts
+// This uses a CDN to avoid bundling issues
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+
 /**
  * Reads a file and returns its text content
  */
 export const readFile = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
+    // For PDF files, use the PDF.js library
+    if (file.type === 'application/pdf') {
+      return readPdfFile(file)
+        .then(resolve)
+        .catch(reject);
+    }
+    
+    // For other files, use the FileReader
     const reader = new FileReader();
     
     reader.onload = (event) => {
@@ -20,6 +34,40 @@ export const readFile = (file: File): Promise<string> => {
     
     reader.readAsText(file);
   });
+};
+
+/**
+ * Reads a PDF file and returns its text content
+ */
+const readPdfFile = async (file: File): Promise<string> => {
+  try {
+    // Convert the file to an ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+    
+    // Load the PDF document
+    const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+    
+    // Extract text from each page
+    let fullText = '';
+    
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      
+      // Join all the text items from the page
+      const pageText = textContent.items
+        .map(item => 'str' in item ? item.str : '')
+        .join(' ');
+      
+      fullText += pageText + '\n\n';
+    }
+    
+    return fullText;
+  } catch (error) {
+    console.error('Error reading PDF:', error);
+    throw new Error('Failed to read PDF file');
+  }
 };
 
 /**
