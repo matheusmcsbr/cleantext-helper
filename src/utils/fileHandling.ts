@@ -1,9 +1,8 @@
 
 import * as pdfjs from 'pdfjs-dist';
 
-// Configure PDF.js to use the bundled worker
-const pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.mjs');
-pdfjs.GlobalWorkerOptions.workerPort = new pdfjsWorker.PDFWorkerFactory();
+// Configure PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 /**
  * Reads a file and returns its text content
