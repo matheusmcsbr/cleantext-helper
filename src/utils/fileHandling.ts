@@ -1,8 +1,7 @@
 import * as pdfjs from 'pdfjs-dist';
 
 // Configure PDF.js worker
-const pdfjsVersion = pdfjs.version;
-pdfjs.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.js`;
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 /**
  * Reads a file and returns its text content
@@ -44,18 +43,16 @@ export const readFile = (file: File): Promise<string> => {
  */
 const readPdfFile = async (file: File): Promise<string> => {
   try {
-    // First attempt to use PDF.js directly
     console.log('Starting PDF reading process');
     
     // Convert the file to an ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
     console.log('File converted to ArrayBuffer');
     
-    // Create a fallback approach using a data URL if needed
+    // Load the PDF document
     const loadingTask = pdfjs.getDocument({
       data: new Uint8Array(arrayBuffer),
-      standardFontDataUrl: 'node_modules/pdfjs-dist/standard_fonts/',
-      cMapUrl: 'node_modules/pdfjs-dist/cmaps/',
+      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
       cMapPacked: true,
     });
     
@@ -63,7 +60,7 @@ const readPdfFile = async (file: File): Promise<string> => {
     
     // Use a timeout to prevent hanging
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('PDF loading timed out after 10 seconds')), 10000);
+      setTimeout(() => reject(new Error('PDF loading timed out after 15 seconds')), 15000);
     });
     
     // Race the PDF loading against the timeout
@@ -94,16 +91,7 @@ const readPdfFile = async (file: File): Promise<string> => {
     return fullText || 'No text content found in the PDF';
   } catch (error) {
     console.error('Error processing PDF:', error);
-    
-    // Fall back to a simplified approach using FileReader for PDF preview
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        resolve('PDF content preview not available. Please try a different file format.');
-      };
-      reader.onerror = () => reject(new Error('PDF read failed in fallback mode'));
-      reader.readAsText(file);
-    });
+    throw error;
   }
 };
 

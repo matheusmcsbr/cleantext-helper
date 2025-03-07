@@ -37,6 +37,12 @@ const FileUpload: React.FC<FileUploadProps> = ({ onTextLoad }) => {
     
     try {
       console.log(`Processing file: ${file.name} (${file.type})`);
+      
+      // If it's a PDF, show specific toast
+      if (file.type === 'application/pdf') {
+        toast.info('Processing PDF file, this may take a moment...');
+      }
+      
       const text = await readFile(file);
       clearInterval(progressInterval);
       setUploadProgress(100);
@@ -46,12 +52,24 @@ const FileUpload: React.FC<FileUploadProps> = ({ onTextLoad }) => {
         onTextLoad(text);
         setIsLoading(false);
         setUploadProgress(null);
-        toast.success('File loaded successfully');
+        toast.success(`${file.name} loaded successfully`);
       }, 500);
     } catch (error) {
       clearInterval(progressInterval);
       console.error('Error reading file:', error);
-      toast.error(`Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Show more helpful error message
+      let errorMessage = 'Failed to read file';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      // For PDF files, provide a more specific suggestion
+      if (file.type === 'application/pdf') {
+        errorMessage += '. Make sure the PDF is not password-protected or corrupted.';
+      }
+      
+      toast.error(errorMessage);
       setIsLoading(false);
       setUploadProgress(null);
     }
