@@ -1,9 +1,8 @@
-
 import * as pdfjs from 'pdfjs-dist';
 
 // Configure PDF.js worker
-// Instead of directly referencing the file in public directory,
-// use a proper URL construction that works with Vite's development server
+// We need to explicitly set the worker to null for environments that don't support workers
+// and handle fallback approaches
 const workerUrl = new URL('/pdf.worker.min.js', window.location.origin).href;
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -53,25 +52,14 @@ const readPdfFile = async (file: File): Promise<string> => {
     const arrayBuffer = await file.arrayBuffer();
     console.log('File converted to ArrayBuffer');
     
-    // Load the PDF document
-    const loadingTask = pdfjs.getDocument({
+    // Load the PDF document using the CDN approach to avoid worker issues
+    const pdf = await pdfjs.getDocument({
       data: new Uint8Array(arrayBuffer),
       cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
       cMapPacked: true,
-    });
-    
-    console.log('PDF loading task created');
-    
-    // Use a timeout to prevent hanging
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('PDF loading timed out after 15 seconds')), 15000);
-    });
-    
-    // Race the PDF loading against the timeout
-    const pdf = await Promise.race([
-      loadingTask.promise,
-      timeoutPromise
-    ]);
+      // Disable worker to avoid "importScripts is not defined" error
+      disableWorker: true,
+    }).promise;
     
     console.log('PDF document loaded, pages:', pdf.numPages);
     
@@ -95,6 +83,15 @@ const readPdfFile = async (file: File): Promise<string> => {
     return fullText || 'No text content found in the PDF';
   } catch (error) {
     console.error('Error processing PDF:', error);
+    
+    // Provide a more user-friendly error message
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // If we get a specific error about workers, provide a clearer message
+    if (errorMessage.includes('importScripts') || errorMessage.includes('worker')) {
+      throw new Error('Browser compatibility issue with PDF processing. Try a different file format.');
+    }
+    
     throw error;
   }
 };

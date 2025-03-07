@@ -64,12 +64,14 @@ const FileUpload: React.FC<FileUploadProps> = ({ onTextLoad }) => {
         errorMessage = error.message;
       }
       
-      // For PDF files, provide a more specific suggestion
+      // For PDF files, provide a more specific fallback suggestion
       if (file.type === 'application/pdf') {
-        errorMessage += '. Make sure the PDF is not password-protected or corrupted.';
+        toast.error(errorMessage);
+        toast.info('Consider converting your PDF to text format or try copying/pasting the content directly');
+      } else {
+        toast.error(errorMessage);
       }
       
-      toast.error(errorMessage);
       setIsLoading(false);
       setUploadProgress(null);
     }
