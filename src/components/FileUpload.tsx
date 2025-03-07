@@ -64,12 +64,13 @@ const FileUpload: React.FC<FileUploadProps> = ({ onTextLoad }) => {
         errorMessage = error.message;
       }
       
-      // For PDF files, provide a more specific fallback suggestion
-      if (file.type === 'application/pdf') {
-        toast.error(errorMessage);
-        toast.info('Consider converting your PDF to text format or try copying/pasting the content directly');
-      } else {
-        toast.error(errorMessage);
+      toast.error(errorMessage);
+      
+      // For problematic files, provide more helpful guidance
+      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        toast.info('Try using a simpler PDF or copy the text directly into the editor');
+      } else if (file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
+        toast.info('Try saving your document as a plain text (.txt) file first');
       }
       
       setIsLoading(false);

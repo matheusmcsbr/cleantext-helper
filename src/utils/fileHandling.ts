@@ -1,8 +1,7 @@
 import * as pdfjs from 'pdfjs-dist';
 
 // Configure PDF.js worker
-// We need to handle environments that might have issues with workers
-const workerUrl = new URL('/pdf.worker.min.js', window.location.origin).href;
+const workerUrl = `https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.js`;
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 /**
@@ -51,62 +50,27 @@ const readPdfFile = async (file: File): Promise<string> => {
     const arrayBuffer = await file.arrayBuffer();
     console.log('File converted to ArrayBuffer');
     
-    // Use a try-catch block specifically for worker issues
-    try {
-      // First attempt: Try with standard configuration
-      const loadingTask = pdfjs.getDocument({
-        data: new Uint8Array(arrayBuffer),
-        cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
-        cMapPacked: true,
-      });
-      
-      console.log('PDF loading task created with standard configuration');
-      const pdf = await loadingTask.promise;
-      console.log('PDF document loaded successfully with standard approach');
-      
-      return extractTextFromPdf(pdf);
-    } catch (workerError) {
-      console.error('Error with standard PDF loading, trying workaround:', workerError);
-      
-      // If we got a worker-related error, try an alternative approach
-      if (String(workerError).includes('importScripts') || 
-          String(workerError).includes('worker')) {
-        
-        console.log('Worker issue detected, using alternative approach');
-        
-        // Reset the worker source to null as a workaround
-        // @ts-ignore - Intentionally bypass type checking for this workaround
-        pdfjs.GlobalWorkerOptions.workerSrc = null;
-        
-        // Create a new loading task with the workaround
-        const fallbackLoadingTask = pdfjs.getDocument({
-          data: new Uint8Array(arrayBuffer),
-          cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
-          cMapPacked: true,
-        });
-        
-        console.log('Attempting fallback PDF loading approach');
-        const pdf = await fallbackLoadingTask.promise;
-        console.log('PDF document loaded with fallback approach');
-        
-        return extractTextFromPdf(pdf);
-      } else {
-        // It's not a worker issue, so rethrow
-        throw workerError;
-      }
-    }
+    // Load the PDF from CDN directly, bypassing worker issues
+    const loadingTask = pdfjs.getDocument({
+      data: new Uint8Array(arrayBuffer),
+      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
+      cMapPacked: true,
+      // Use direct loading without worker
+      useWorkerFetch: false,
+      isEvalSupported: false,
+      useSystemFonts: true
+    });
+    
+    console.log('PDF loading task created without worker');
+    const pdf = await loadingTask.promise;
+    console.log('PDF document loaded successfully');
+    
+    return extractTextFromPdf(pdf);
   } catch (error) {
     console.error('Error processing PDF:', error);
     
-    // Provide a more user-friendly error message
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
-    // If we get a specific error about workers or other known issues, provide a clearer message
-    if (String(error).includes('importScripts') || String(error).includes('worker')) {
-      throw new Error('Browser compatibility issue with PDF processing. Try a different file format.');
-    }
-    
-    throw error;
+    // Provide a more helpful error message for the user
+    throw new Error('Unable to process this PDF file format. Try using a simpler PDF or another file format.');
   }
 };
 
@@ -120,16 +84,21 @@ const extractTextFromPdf = async (pdf: pdfjs.PDFDocumentProxy): Promise<string> 
   let fullText = '';
   
   for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const textContent = await page.getTextContent();
-    
-    // Join all the text items from the page
-    const pageText = textContent.items
-      .map(item => 'str' in item ? item.str : '')
-      .join(' ');
-    
-    fullText += pageText + '\n\n';
-    console.log(`Processed page ${i}/${pdf.numPages}`);
+    try {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      
+      // Join all the text items from the page
+      const pageText = textContent.items
+        .map(item => 'str' in item ? item.str : '')
+        .join(' ');
+      
+      fullText += pageText + '\n\n';
+      console.log(`Processed page ${i}/${pdf.numPages}`);
+    } catch (pageError) {
+      console.error(`Error processing page ${i}:`, pageError);
+      fullText += `[Error extracting text from page ${i}]\n\n`;
+    }
   }
   
   console.log('PDF text extraction complete');
