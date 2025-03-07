@@ -1,7 +1,11 @@
+
 import * as pdfjs from 'pdfjs-dist';
 
 // Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+// Instead of directly referencing the file in public directory,
+// use a proper URL construction that works with Vite's development server
+const workerUrl = new URL('/pdf.worker.min.js', window.location.origin).href;
+pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 /**
  * Reads a file and returns its text content
