@@ -1,8 +1,7 @@
 import * as pdfjs from 'pdfjs-dist';
 
 // Configure PDF.js worker
-// We need to explicitly set the worker to null for environments that don't support workers
-// and handle fallback approaches
+// We need to handle environments that might have issues with workers
 const workerUrl = new URL('/pdf.worker.min.js', window.location.origin).href;
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -52,48 +51,89 @@ const readPdfFile = async (file: File): Promise<string> => {
     const arrayBuffer = await file.arrayBuffer();
     console.log('File converted to ArrayBuffer');
     
-    // Load the PDF document using the CDN approach to avoid worker issues
-    const pdf = await pdfjs.getDocument({
-      data: new Uint8Array(arrayBuffer),
-      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
-      cMapPacked: true,
-      // Disable worker to avoid "importScripts is not defined" error
-      disableWorker: true,
-    }).promise;
-    
-    console.log('PDF document loaded, pages:', pdf.numPages);
-    
-    // Extract text from each page
-    let fullText = '';
-    
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
+    // Use a try-catch block specifically for worker issues
+    try {
+      // First attempt: Try with standard configuration
+      const loadingTask = pdfjs.getDocument({
+        data: new Uint8Array(arrayBuffer),
+        cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
+        cMapPacked: true,
+      });
       
-      // Join all the text items from the page
-      const pageText = textContent.items
-        .map(item => 'str' in item ? item.str : '')
-        .join(' ');
+      console.log('PDF loading task created with standard configuration');
+      const pdf = await loadingTask.promise;
+      console.log('PDF document loaded successfully with standard approach');
       
-      fullText += pageText + '\n\n';
-      console.log(`Processed page ${i}/${pdf.numPages}`);
+      return extractTextFromPdf(pdf);
+    } catch (workerError) {
+      console.error('Error with standard PDF loading, trying workaround:', workerError);
+      
+      // If we got a worker-related error, try an alternative approach
+      if (String(workerError).includes('importScripts') || 
+          String(workerError).includes('worker')) {
+        
+        console.log('Worker issue detected, using alternative approach');
+        
+        // Reset the worker source to null as a workaround
+        // @ts-ignore - Intentionally bypass type checking for this workaround
+        pdfjs.GlobalWorkerOptions.workerSrc = null;
+        
+        // Create a new loading task with the workaround
+        const fallbackLoadingTask = pdfjs.getDocument({
+          data: new Uint8Array(arrayBuffer),
+          cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
+          cMapPacked: true,
+        });
+        
+        console.log('Attempting fallback PDF loading approach');
+        const pdf = await fallbackLoadingTask.promise;
+        console.log('PDF document loaded with fallback approach');
+        
+        return extractTextFromPdf(pdf);
+      } else {
+        // It's not a worker issue, so rethrow
+        throw workerError;
+      }
     }
-    
-    console.log('PDF text extraction complete');
-    return fullText || 'No text content found in the PDF';
   } catch (error) {
     console.error('Error processing PDF:', error);
     
     // Provide a more user-friendly error message
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     
-    // If we get a specific error about workers, provide a clearer message
-    if (errorMessage.includes('importScripts') || errorMessage.includes('worker')) {
+    // If we get a specific error about workers or other known issues, provide a clearer message
+    if (String(error).includes('importScripts') || String(error).includes('worker')) {
       throw new Error('Browser compatibility issue with PDF processing. Try a different file format.');
     }
     
     throw error;
   }
+};
+
+/**
+ * Extract text content from a PDF document
+ */
+const extractTextFromPdf = async (pdf: pdfjs.PDFDocumentProxy): Promise<string> => {
+  console.log('PDF document loaded, pages:', pdf.numPages);
+  
+  // Extract text from each page
+  let fullText = '';
+  
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    
+    // Join all the text items from the page
+    const pageText = textContent.items
+      .map(item => 'str' in item ? item.str : '')
+      .join(' ');
+    
+    fullText += pageText + '\n\n';
+    console.log(`Processed page ${i}/${pdf.numPages}`);
+  }
+  
+  console.log('PDF text extraction complete');
+  return fullText || 'No text content found in the PDF';
 };
 
 /**
